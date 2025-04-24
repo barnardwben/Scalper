@@ -10,7 +10,7 @@
         background-color: #1e1e2d;
         color: white;
         margin: 0;
-        padding: 20px;
+        padding: 10px;
         justify-content: space-between;
       }
 
@@ -108,7 +108,8 @@
         padding: 10px;
         border-radius: 10px;
         margin-top: 10px;
-        width: 380px;
+        width: 100%;
+        max-width: 365px;
         font-size: 12px;
       }
 
@@ -165,7 +166,7 @@
         max-height: 400px;
         width: 100%;
         max-width: 365px;
-        padding: 1rem;
+        padding: 10px;
         overflow-y: auto;
         background-color: #2a2a3b;
         border-radius: 10px;
@@ -534,24 +535,27 @@
       };
 
       const createChart = () => {
-        new TradingView.widget({
-          width: '73vw',
-          height: 625,
-          symbol: "BITGET:SOLUSDT.P",
-          interval: "D",
-          timezone: "Etc/UTC",
-          theme: "dark",
-          style: "1",
-          locale: "en",
-          toolbar_bg: "#f1f3f6",
-          enable_publishing: false,
-          allow_symbol_change: true,
-          container_id: "priceChart",
-        });
-      };
+    const isMobile = window.innerWidth <= 768;  // You can adjust this breakpoint if needed
+    const chartWidth = isMobile ? '89vw' : '73vw';
 
-      // Initialize chart
-      createChart();
+    new TradingView.widget({
+        width: chartWidth,
+        height: 625,
+        symbol: "BITGET:SOLUSDT.P",
+        interval: "D",
+        timezone: "Etc/UTC",
+        theme: "dark",
+        style: "1",
+        locale: "en",
+        toolbar_bg: "#f1f3f6",
+        enable_publishing: false,
+        allow_symbol_change: true,
+        container_id: "priceChart",
+    });
+};
+
+createChart();
+
     </script>
   </body>
 </html>
