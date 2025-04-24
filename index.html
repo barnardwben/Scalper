@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://s3.tradingview.com/tv.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>Perpetual Trade Calculator</title>
     <style>
       body {
@@ -105,8 +107,11 @@
 
 
       .pnl-area {
-        max-width: 97%;
-        margin: auto;
+        width: 100%;
+    margin: auto;
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
       }
 
       .results {
@@ -209,6 +214,22 @@
         gap: 1rem;
         width: 100%;
       }
+
+
+      .profit-chart-container {
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  max-height: 600px;
+  background-color: #2a2a3b;
+  padding: 10px;
+  border-radius: 10px;
+  margin: .5rem auto;
+}
+
+.hiding {
+ visibility: hidden;
+}
     </style>
     <script src="https://s3.tradingview.com/tv.js"></script>
   </head>
@@ -338,37 +359,45 @@
   
 <footer>
   <section class="pnl-area">
-    <div class="results-container" id="resultsContainer">
-      <div class="results">
-        <h2>Results</h2>
-        <div class="result">
-          <p id="entryPriceResult"></p>
-          <p id="exitPriceResult"></p>
-          <p id="stopLossPriceResult"></p>
-          <p id="stopLossReturnResult"></p>
-          <p id="amountInvestedResult"></p>
-          <p id="feeResult"></p>
-          <p id="leverageResult"></p>
-          <p id="liquidationResult"></p>
-          <p id="tokenResult"></p>
-          <p id="profitResult"></p>
+    <div>
+      <div class="results-container" id="resultsContainer">
+        <div class="results">
+          <h2>Results</h2>
+          <div class="result">
+            <p id="entryPriceResult"></p>
+            <p id="exitPriceResult"></p>
+            <p id="stopLossPriceResult"></p>
+            <p id="stopLossReturnResult"></p>
+            <p id="amountInvestedResult"></p>
+            <p id="feeResult"></p>
+            <p id="leverageResult"></p>
+            <p id="liquidationResult"></p>
+            <p id="tokenResult"></p>
+            <p id="profitResult"></p>
+          </div>
         </div>
       </div>
+  
+      <div class="table-container" id="tableContainer">
+        <h2>Profit at Various Exit Prices</h2>
+        <table class="profit-table" id="profitTable">
+          <thead>
+            <tr>
+              <th>% Change in Price</th>
+              <th>Exit Price ($)</th>
+              <th>Total Profit ($)</th>
+              <th>Asset Profit</th>
+              <th>Profit % Increase</th>
+            </tr>
+          </thead>
+          <tbody style="font-size: 13px"></tbody>
+        </table>
+      </div>
+  
     </div>
-
-    <div class="table-container" id="tableContainer">
-      <h2>Profit at Various Exit Prices</h2>
-      <table class="profit-table" id="profitTable">
-        <thead>
-          <tr>
-            <th>% Change</th>
-            <th>Exit Price ($)</th>
-            <th>Total Profit ($)</th>
-            <th>Asset Profit</th>
-          </tr>
-        </thead>
-        <tbody style="font-size: 13px"></tbody>
-      </table>
+  
+    <div class="profit-chart-container hiding">
+      <canvas id="profitChart" class="profit-chart"></canvas>
     </div>
   </section>
 
@@ -490,6 +519,7 @@
         document.getElementById("tableContainer").style.display = "block"; // Show the table container
 
         calculateProfitTable(entryPrice, leverage, solAmount);
+        updateProfitChart(entryPrice, leverage, solAmount, tradeType);
       };
 
       const calculateProfitTable = (entryPrice, leverage, solAmount) => {
@@ -521,6 +551,9 @@
           const exitPriceCell = document.createElement("td");
           const profitCell = document.createElement("td");
           const tokenCell = document.createElement("td");
+          const tokenPercentCell = document.createElement("td");
+
+          const profitAfterFee = profit.toFixed(3) - totalFee;
 
           percentCell.textContent = `${changePercent}%`;
           exitPriceCell.textContent = `$${exitPrice.toFixed(3)}`;
@@ -531,11 +564,17 @@
             (profit.toFixed(3) - totalFee) /
             exitPrice
           ).toFixed(3)}`;
+          tokenPercentCell.textContent = `${(profitAfterFee / (solAmount * entryPrice.toFixed(3)) * 100 ).toFixed(3) }%`;
+
+
+          
+
 
           row.appendChild(percentCell);
           row.appendChild(exitPriceCell);
           row.appendChild(profitCell);
           row.appendChild(tokenCell);
+          row.appendChild(tokenPercentCell);
           profitTableBody.appendChild(row);
         }
       };
@@ -562,6 +601,158 @@
 
 createChart();
 
+
+
+let profitChart = null; // Store chart instance for updates
+
+const calculateDaProfit = () => {
+  const entryPrice = parseFloat(document.getElementById("entryPrice").value);
+  const exitPrice = parseFloat(document.getElementById("exitPrice").value);
+  const stopLossPrice = parseFloat(document.getElementById("stopLossPrice").value);
+  const leverage = parseFloat(document.getElementById("leverage").value);
+  const solAmount = parseFloat(document.getElementById("solAmount").value);
+
+  if (
+    isNaN(entryPrice) ||
+    isNaN(exitPrice) ||
+    isNaN(leverage) ||
+    isNaN(solAmount)
+  ) {
+    alert("Please enter valid numbers in all fields.");
+    return;
+  }
+
+  let profit, stopLossProfit, liquidationPrice;
+  let totalFee =
+    ((solAmount * leverage * entryPrice.toFixed(3)) / 1000000000 + 0.0006) *
+    (solAmount * leverage * entryPrice.toFixed(3)) *
+    2;
+
+  if (tradeType === "long") {
+    profit = (exitPrice - entryPrice) * solAmount * leverage;
+    const collateral = (entryPrice * solAmount) / leverage;
+    liquidationPrice = entryPrice - collateral / solAmount;
+    stopLossProfit = (stopLossPrice - entryPrice) * solAmount * leverage;
+    stopLossProfit = stopLossProfit * -1;
+  } else {
+    profit = (entryPrice - exitPrice) * solAmount * leverage;
+    const collateral = (entryPrice * solAmount) / leverage;
+    liquidationPrice = entryPrice + collateral / solAmount;
+    stopLossProfit = (entryPrice - stopLossPrice) * solAmount * leverage;
+    stopLossProfit = stopLossProfit * -1;
+  }
+
+  // Update results (existing code)
+  document.getElementById("entryPriceResult").innerText = `Entry Price: $${entryPrice.toFixed(3)}`;
+  document.getElementById("exitPriceResult").innerText = `Exit Price: $${exitPrice.toFixed(3)}`;
+  document.getElementById("stopLossPriceResult").innerText = `Stop Loss Price: $${stopLossPrice.toFixed(3)}`;
+  document.getElementById("stopLossReturnResult").innerText = `Stop Loss Return: $${(solAmount * entryPrice.toFixed(3) - stopLossProfit.toFixed(3))}`;
+  document.getElementById("amountInvestedResult").innerText = `Amount Invested: $${(solAmount * entryPrice.toFixed(3))}`;
+  document.getElementById("leverageResult").innerText = `Leverage: ${leverage}x`;
+  document.getElementById("feeResult").innerText = `Entry + Exit Fee: $${totalFee.toFixed(3)}`;
+  document.getElementById("liquidationResult").innerText = `Liquidation Price: $${liquidationPrice.toFixed(3)}`;
+  document.getElementById("tokenResult").innerText = `Token Return: ${((profit.toFixed(3) - totalFee) / exitPrice).toFixed(3)}`;
+  document.getElementById("profitResult").innerText = `Total Profit: $${(profit.toFixed(3) - totalFee).toFixed(3)}`;
+
+  document.getElementById("resultsContainer").style.display = "block";
+  document.getElementById("tableContainer").style.display = "block";
+
+  calculateProfitTable(entryPrice, leverage, solAmount);
+  updateProfitChart(entryPrice, leverage, solAmount, tradeType); // New function to update chart
+};
+
+const updateProfitChart = (entryPrice, leverage, solAmount, tradeType) => {
+  let profitChartDisplay = document.querySelector(".profit-chart-container");
+  profitChartDisplay.classList.remove("hiding"); // Replace "your-class-name" with the desired class
+  const ctx = document.getElementById("profitChart").getContext("2d");
+  const exitPrices = [];
+  const profits = [];
+
+  // Generate data for chart (similar to profit table)
+  for (let i = -50; i <= 50; i++) {
+    const changePercent = i;
+    const priceChange = entryPrice * (changePercent / 100);
+    let exitPrice, profit;
+    let totalFee =
+      ((solAmount * leverage * entryPrice.toFixed(3)) / 1000000000 + 0.0006) *
+      (solAmount * leverage * entryPrice.toFixed(3)) *
+      2;
+
+    if (tradeType === "long") {
+      exitPrice = entryPrice + priceChange;
+      profit = (exitPrice - entryPrice) * solAmount * leverage;
+    } else {
+      exitPrice = entryPrice - priceChange;
+      profit = (entryPrice - exitPrice) * solAmount * leverage;
+    }
+
+    exitPrices.push(exitPrice.toFixed(2));
+    profits.push((profit - totalFee).toFixed(2));
+  }
+
+  // Destroy existing chart if it exists
+  if (profitChart) {
+    profitChart.destroy();
+  }
+
+  // Create new chart
+  profitChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: exitPrices,
+      datasets: [
+        {
+          label: "Total Profit ($)",
+          data: profits,
+          borderColor: "#3b8ddb",
+          backgroundColor: "rgba(59, 141, 219, 0.2)",
+          fill: true,
+          tension: .01,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Exit Price ($)",
+            color: "#fff",
+          },
+          ticks: {
+            color: "#fff",
+            maxTicksLimit: 10,
+          },
+          grid: {
+            color: "rgba(255, 255, 255, 0.1)",
+          },
+        },
+        y: {
+          title: {
+            display: true,
+            text: "Profit ($)",
+            color: "#fff",
+          },
+          ticks: {
+            color: "#fff",
+          },
+          grid: {
+            color: "rgba(255, 255, 255, 0.1)",
+          },
+        },
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#fff",
+          },
+        },
+      },
+    },
+  });
+};
     </script>
   </body>
 </html>
